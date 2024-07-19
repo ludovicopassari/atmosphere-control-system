@@ -1,0 +1,44 @@
+version: '3.8'
+services:
+
+  device-data-collector:
+    image: device-data-collector
+    volumes:
+      - ../device-data-collector/app:/device-data-collector/
+    networks:
+      - mqtt_network
+    depends_on:
+      - mongo
+      - mosquitto
+
+
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    volumes:
+      -  ../device-data-collector/app/mosquitto/config:/mosquitto/config  # Volume per la configurazione di Mosquitto
+      -  ../device-data-collector/app/mosquitto/data:/mosquitto/data     # Volume per i dati di Mosquitto
+      -  ../device-data-collector/app/mosquitto/log:/mosquitto/log       # Volume per i log di Mosquitto
+    ports:
+      - "1884:1883"
+      - "9003:9001"
+    networks:
+      - mqtt_network
+
+
+  mongo:
+    image: mongo:latest
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongo-volume:/data/db
+    networks:
+      - mqtt_network
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: passwd
+
+networks:
+  mqtt_network:
+
+volumes:
+  mongo-volume:

@@ -5,10 +5,10 @@ FROM python:3.9-slim
 WORKDIR /device-data-collector
 
 # Copia il resto del codice nell'immagine
-COPY . .
+COPY ./app .
 
 # Installa le dipendenze Python. Esegue quando si fa il buil dell'immagine
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --upgrade -r requirements.txt
 
 # Esegue il codice
 CMD ["python", "device_data_collector.py"]
