@@ -26,6 +26,7 @@ services:
 
 
   mongo:
+    #image: mongo:4.0.0-rc2-xenial
     image: mongo:latest
     ports:
       - "27018:27017"

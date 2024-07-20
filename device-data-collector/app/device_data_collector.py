@@ -7,6 +7,7 @@ from queue import Queue
 from typing import List
 
 import paho.mqtt.client as mqtt
+from pymongo import MongoClient
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -14,6 +15,9 @@ logger = logging.getLogger(__name__)
 logger.debug("Creating Message Queue...")
 # rappresenta la coda di messaggi in arrivo
 message_queue = Queue(4)
+mongo_client = MongoClient("mongodb://mongo:27017/", username='root', password='passwd')
+db = mongo_client["testdb"]
+collection = db["messages"]
 
 
 # funzione di callback per gestire le connessioni
@@ -25,7 +29,7 @@ def on_connect(client, userdata, flags, reason_code, properties):
 # funzione di callback per gestire l'arrivo di un messaggio
 def on_message(client, userdata, msg):
     logger.info("Received a message on topic " + str(msg.topic))
-    enqueue_message(message_queue, msg.payload, 2, False)
+    enqueue_message(message_queue, msg, 2, False)
     logger.debug("Message successfully enqueued ")
 
 
@@ -36,7 +40,18 @@ def process_message(msg_queue: Queue):
             break
         logger.debug(f"Working on  message: {message} thread {threading.current_thread()}")
 
-        msg_queue.task_done()
+        try:
+            data = {
+                "topic": "topic",
+                "payload": message.payload.decode("utf-8"),
+                "timestamp": time.time()
+            }
+            collection.insert_one(data)
+            logger.debug("Message successfully stored ")
+
+        except Exception as e:
+            logger.error(f"Errore durante l'inserimento nel DB: {e}")
+        message_queue.task_done()
 
 
 # inserisce nella cosa di messaggi un messaggio assumendo che esso sia gia stato validato
@@ -55,14 +70,14 @@ def main():
     logger.debug(f"Create successfully thread Queue with {num_workers} threads ")
 
     logger.debug("Create MQTT Client")
-    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-    client.enable_logger(logger=logger)
+    mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    mqtt_client.enable_logger(logger=logger)
     # assegno le funzioni di call back
-    client.on_connect = on_connect
-    client.on_message = on_message
+    mqtt_client.on_connect = on_connect
+    mqtt_client.on_message = on_message
 
     # Connessione al broker Mosquitto
-    client.connect("mosquitto", 1883, 60)
+    mqtt_client.connect("mosquitto", 1883, 60)
     logger.debug("Connected to MQTT Server")
 
     with ThreadPoolExecutor(max_workers=num_workers) as executor:
@@ -73,15 +88,15 @@ def main():
 
         logger.debug("Starting thread to process network traffic")
         # lancia il thread che gestisce il traffico in arrivo dalla rete in modo tale da non bloccare il thread
-        client.loop_start()
+        mqtt_client.loop_start()
 
         try:
             while True:
                 pass
         except KeyboardInterrupt:
 
-            client.loop_stop()
-            client.disconnect()
+            mqtt_client.loop_stop()
+            mqtt_client.disconnect()
 
             # aspetta che la coda di messaggi sia vuota
             message_queue.join()
